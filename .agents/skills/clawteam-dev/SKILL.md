@@ -56,9 +56,8 @@ This script lives in `scripts/link_local_clawteam_skills.sh` inside this skill f
 
 This creates these symlinks inside the target project:
 
-- `./.agents/skills/clawteam-dev`
+- `./.agents/skills/clawteam`
 - `./.claude/skills/clawteam`
-- `./.claude/skills/clawteam-dev`
 
 Run the same script again any time you want to refresh or recreate those links.
 

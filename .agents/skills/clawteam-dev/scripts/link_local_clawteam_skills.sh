@@ -21,11 +21,11 @@ link_path() {
   ln -s "${source_path}" "${target_path}"
 }
 
-link_path "${REPO_ROOT}/.agents/skills/clawteam-dev" "${TARGET_DIR}/.agents/skills/clawteam-dev"
+rm -f "${TARGET_DIR}/.agents/skills/clawteam-dev" "${TARGET_DIR}/.claude/skills/clawteam-dev"
+
+link_path "${REPO_ROOT}/skills/clawteam" "${TARGET_DIR}/.agents/skills/clawteam"
 link_path "${REPO_ROOT}/skills/clawteam" "${TARGET_DIR}/.claude/skills/clawteam"
-link_path "${REPO_ROOT}/.agents/skills/clawteam-dev" "${TARGET_DIR}/.claude/skills/clawteam-dev"
 
 echo "Linked local ClawTeam skills into ${TARGET_DIR}"
-echo "  .agents/skills/clawteam-dev -> ${REPO_ROOT}/.agents/skills/clawteam-dev"
+echo "  .agents/skills/clawteam -> ${REPO_ROOT}/skills/clawteam"
 echo "  .claude/skills/clawteam -> ${REPO_ROOT}/skills/clawteam"
-echo "  .claude/skills/clawteam-dev -> ${REPO_ROOT}/.agents/skills/clawteam-dev"
