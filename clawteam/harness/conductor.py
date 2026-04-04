@@ -120,13 +120,16 @@ class HarnessConductor:
             new_phase = self._orch.advance()
             if new_phase:
                 print(f"[conductor] Advanced to phase: {new_phase}", file=sys.stderr)
-                # Prepare execute phase if needed
                 if new_phase == "execute":
-                    self._prepare_execute()
-                # Spawn for new phase
-                spawned = self._spawn.spawn_for_phase(new_phase, self._orch)
-                if spawned:
-                    print(f"[conductor] Spawned: {', '.join(spawned)}", file=sys.stderr)
+                    # Spawn executors first so task assignment can target real agent names.
+                    spawned = self._spawn.spawn_for_phase(new_phase, self._orch)
+                    if spawned:
+                        print(f"[conductor] Spawned: {', '.join(spawned)}", file=sys.stderr)
+                    self._prepare_execute(executor_names=spawned)
+                else:
+                    spawned = self._spawn.spawn_for_phase(new_phase, self._orch)
+                    if spawned:
+                        print(f"[conductor] Spawned: {', '.join(spawned)}", file=sys.stderr)
 
             # 3. Check if we're at the final phase
             phases = self._orch.state.phases
@@ -147,12 +150,24 @@ class HarnessConductor:
 
         print("[conductor] Stopped.", file=sys.stderr)
 
-    def _prepare_execute(self) -> None:
+    def _prepare_execute(self, executor_names: list[str] | None = None) -> None:
         """Prepare the execute phase: load contracts, create tasks."""
         try:
             from clawteam.harness.contract_executor import ContractExecutor
+            from clawteam.team.manager import TeamManager
+
+            available_executors = list(executor_names or [])
+            if not available_executors:
+                team = TeamManager.get_team(self._orch.team_name)
+                if team:
+                    available_executors = [
+                        member.name
+                        for member in team.members
+                        if member.agent_type == "executor"
+                    ]
+
             executor = ContractExecutor(self._orch)
-            tasks = executor.create_tasks_from_contracts()
+            tasks = executor.create_tasks_from_contracts(agent_names=available_executors)
             if tasks:
                 print(f"[conductor] Created {len(tasks)} task(s) from contracts", file=sys.stderr)
         except Exception as e:

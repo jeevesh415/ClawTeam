@@ -4435,16 +4435,34 @@ def run_command(
 
     from clawteam.harness.prompts import build_harness_system_prompt, build_wrapped_prompt
     from clawteam.spawn import get_backend
+    from clawteam.spawn.adapters import is_claude_command
     from clawteam.team.manager import TeamManager
 
-    # Auto-create team
     mgr = TeamManager
-    if not mgr.team_exists(team):
-        mgr.create_team(team, leader_name="user")
+    existing_team = mgr.get_team(team)
+    existing_leader = None
+    if existing_team and resume:
+        existing_leader = next(
+            (member for member in existing_team.members if member.agent_id == existing_team.lead_agent_id),
+            existing_team.members[0] if existing_team.members else None,
+        )
 
-    agent_name = f"{cli}-{_uuid.uuid4().hex[:6]}"
-    agent_id = _uuid.uuid4().hex[:12]
-    mgr.add_member(team, agent_name, agent_id=agent_id, agent_type=cli)
+    if existing_leader is not None:
+        agent_name = existing_leader.name
+        agent_id = existing_leader.agent_id
+    else:
+        agent_name = f"{cli}-{_uuid.uuid4().hex[:6]}"
+        agent_id = _uuid.uuid4().hex[:12]
+
+    if existing_team is None:
+        mgr.create_team(
+            name=team,
+            leader_name=agent_name,
+            leader_id=agent_id,
+            leader_agent_type=cli,
+        )
+    elif existing_leader is None:
+        mgr.add_member(team, agent_name, agent_id=agent_id, agent_type=cli)
 
     # Optional workspace
     cwd = None
@@ -4484,6 +4502,16 @@ def run_command(
     backend = get_backend(cfg.default_backend or "tmux")
 
     command_list = [cli]
+    if resume:
+        from clawteam.spawn.sessions import SessionStore
+
+        session = SessionStore(team).load(agent_name)
+        if session and session.session_id and is_claude_command(command_list):
+            command_list = [*command_list, "--resume", session.session_id]
+            console.print(f"[dim]Resuming session: {session.session_id}[/dim]")
+            if prompt:
+                prompt += "\nYou are resuming a previous session."
+
     result = backend.spawn(
         command=command_list,
         agent_name=agent_name,
@@ -4502,7 +4530,7 @@ def run_command(
         raise typer.Exit(1)
 
     console.print(f"[green]{result}[/green]")
-    console.print(f"[bold]Attach:[/bold] tmux attach -t oh-{team}")
+    console.print(f"[bold]Attach:[/bold] tmux attach -t clawteam-{team}")
 
 
 if __name__ == "__main__":

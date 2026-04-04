@@ -145,6 +145,8 @@ class FileTaskStore(BaseTaskStore):
                 self._acquire_lock(task, caller, force)
                 if not task.started_at:
                     task.started_at = _now_iso()
+                if owner is None and caller and not task.owner:
+                    task.owner = caller
 
             if status in (TaskStatus.completed, TaskStatus.pending):
                 task.locked_by = ""

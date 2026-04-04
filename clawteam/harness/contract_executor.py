@@ -52,7 +52,7 @@ class ContractExecutor:
                         pass
         return sorted(contracts, key=lambda c: (c.wave, c.id))
 
-    def create_tasks_from_contracts(self) -> list:
+    def create_tasks_from_contracts(self, agent_names: list[str] | None = None) -> list:
         """Convert contracts to TaskStore tasks with wave dependencies."""
         from clawteam.team.models import TaskPriority
         from clawteam.team.tasks import TaskStore
@@ -61,6 +61,11 @@ class ContractExecutor:
         store = TaskStore(self._orch.team_name)
         created_tasks = []
         wave_task_ids: dict[int, list[str]] = {}  # wave -> [task_ids]
+        assigned_contracts = self._assignment.assign(contracts, agent_names or [])
+        contract_assignees: dict[str, list[str]] = {}
+        for agent_name, items in assigned_contracts.items():
+            for contract in items:
+                contract_assignees.setdefault(contract.id, []).append(agent_name)
 
         for contract in contracts:
             # Determine blocked_by from previous waves
@@ -68,12 +73,22 @@ class ContractExecutor:
             for dep_wave in range(1, contract.wave):
                 blocked_by.extend(wave_task_ids.get(dep_wave, []))
 
+            assignees = list(contract.assigned_to or contract_assignees.get(contract.id, []))
+            owner = assignees[0] if assignees else ""
+            if assignees:
+                contract.assigned_to = assignees
+
             task = store.create(
                 subject=contract.title,
                 description=contract.description,
+                owner=owner,
                 priority=TaskPriority.high,
                 blocked_by=blocked_by if blocked_by else None,
-                metadata={"contract_id": contract.id, "wave": contract.wave},
+                metadata={
+                    "contract_id": contract.id,
+                    "wave": contract.wave,
+                    "assigned_to": assignees,
+                },
             )
 
             wave_task_ids.setdefault(contract.wave, []).append(task.id)

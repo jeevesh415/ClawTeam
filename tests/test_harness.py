@@ -227,6 +227,63 @@ class TestContractExecutor:
         assert len(mapping["exec-1"]) == 2
         assert len(mapping["exec-2"]) == 1
 
+    def test_create_tasks_from_contracts_assigns_owner_round_robin(self, tmp_path, monkeypatch):
+        from clawteam.harness.contract_executor import ContractExecutor
+        from clawteam.team.tasks import TaskStore
+
+        monkeypatch.setenv("CLAWTEAM_DATA_DIR", str(tmp_path))
+
+        class Orch:
+            team_name = "demo"
+            artifacts = ArtifactStore(tmp_path, "demo", "h1")
+
+        orch = Orch()
+        orch.artifacts.write_sprint_contract(
+            "001",
+            SprintContract(title="A", description="a", wave=1).model_dump_json(),
+        )
+        orch.artifacts.write_sprint_contract(
+            "002",
+            SprintContract(title="B", description="b", wave=1).model_dump_json(),
+        )
+        orch.artifacts.write_sprint_contract(
+            "003",
+            SprintContract(title="C", description="c", wave=2).model_dump_json(),
+        )
+
+        executor = ContractExecutor(orch)
+        tasks = executor.create_tasks_from_contracts(agent_names=["exec-1", "exec-2"])
+
+        assert [task.owner for task in tasks] == ["exec-1", "exec-2", "exec-1"]
+
+        stored = TaskStore("demo").list_tasks()
+        assert [task.owner for task in stored] == ["exec-1", "exec-2", "exec-1"]
+        assert stored[0].metadata["assigned_to"] == ["exec-1"]
+
+    def test_create_tasks_from_contracts_prefers_contract_assignee(self, tmp_path, monkeypatch):
+        from clawteam.harness.contract_executor import ContractExecutor
+
+        monkeypatch.setenv("CLAWTEAM_DATA_DIR", str(tmp_path))
+
+        class Orch:
+            team_name = "demo"
+            artifacts = ArtifactStore(tmp_path, "demo", "h1")
+
+        orch = Orch()
+        orch.artifacts.write_sprint_contract(
+            "001",
+            SprintContract(
+                title="A", description="a", wave=1, assigned_to=["specialist"],
+            ).model_dump_json(),
+        )
+
+        executor = ContractExecutor(orch)
+        tasks = executor.create_tasks_from_contracts(agent_names=["exec-1", "exec-2"])
+
+        assert len(tasks) == 1
+        assert tasks[0].owner == "specialist"
+        assert tasks[0].metadata["assigned_to"] == ["specialist"]
+
 
 class TestContextRecovery:
     def test_build_recovery_prompt(self):
@@ -251,6 +308,23 @@ class TestContextRecovery:
         # Both should have iteration context
         assert "Iteration 1/5" in exec_prompt
         assert "Iteration 1/5" in eval_prompt
+
+
+class TestHarnessPrompts:
+    def test_system_prompt_includes_assignment_fallback(self):
+        from clawteam.harness.prompts import build_harness_system_prompt
+
+        prompt = build_harness_system_prompt("demo", "exec-1")
+        assert "task list demo --owner exec-1" in prompt
+        assert "task list demo`" in prompt
+        assert "before declaring yourself idle" in prompt
+
+    def test_wrapped_prompt_includes_assignment_fallback(self):
+        from clawteam.harness.prompts import build_wrapped_prompt
+
+        prompt = build_wrapped_prompt("exec-1", "Implement feature X", "demo")
+        assert "task list demo --owner exec-1" in prompt
+        assert "fall back to `clawteam task list demo`" in prompt
 
 
 class TestRalphLoopPlugin:

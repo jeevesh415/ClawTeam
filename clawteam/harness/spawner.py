@@ -61,7 +61,11 @@ class PhaseRoleSpawner(SpawnStrategy):
 
                 # Register agent as team member
                 if not TeamManager.team_exists(state.team_name):
-                    TeamManager.create_team(state.team_name, leader_name="conductor")
+                    TeamManager.create_team(
+                        name=state.team_name,
+                        leader_name="conductor",
+                        leader_id="conductor",
+                    )
                 TeamManager.add_member(
                     state.team_name, agent_name,
                     agent_id=agent_id, agent_type=role_name,

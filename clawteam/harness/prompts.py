@@ -17,6 +17,7 @@ Your identity: **{agent_name}** in team **{team}**.
 
 ### Available Commands
 - `clawteam task list {team} --owner {agent_name}` — View your assigned tasks
+- `clawteam task list {team}` — Fall back to the full task board if assignment has not been claimed yet
 - `clawteam task update {team} <id> --status in_progress` — Start working on a task
 - `clawteam task update {team} <id> --status completed` — Mark task as done
 - `clawteam inbox receive {team} --agent {agent_name}` — Check for messages
@@ -27,12 +28,13 @@ Your identity: **{agent_name}** in team **{team}**.
 
 ### Protocol
 1. Check your tasks: `clawteam task list {team} --owner {agent_name}`
-2. For each task, update status to in_progress before starting
-3. Commit changes frequently with git
-4. Mark tasks completed when done
-5. Check for new messages and tasks after completing your batch
-6. If idle, signal with `clawteam lifecycle idle {team}`
-7. The harness manages your lifecycle — focus on the task at hand
+2. If that list is empty, inspect `clawteam task list {team}` and your inbox before declaring yourself idle
+3. For each task, update status to in_progress before starting
+4. Commit changes frequently with git
+5. Mark tasks completed when done
+6. Check for new messages and tasks after completing your batch
+7. If idle, signal with `clawteam lifecycle idle {team}`
+8. The harness manages your lifecycle — focus on the task at hand
 """
 
 
@@ -52,5 +54,6 @@ def build_wrapped_prompt(
 ---
 You are agent **{agent_name}** in team **{team}**.
 Use `clawteam task list {team} --owner {agent_name}` to check for assigned tasks.
+If that is empty, fall back to `clawteam task list {team}` and your inbox before declaring yourself idle.
 When done, signal completion with `clawteam inbox send {team} leader "All tasks completed."`.
 """

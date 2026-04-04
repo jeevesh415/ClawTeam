@@ -445,3 +445,80 @@ def test_runtime_watch_cli_uses_runtime_router(monkeypatch, tmp_path):
     assert captured["agent"] == "alice_worker"
     assert captured["runtime_router"] is not None
     assert captured["runtime_router"].agent_name == "worker"
+
+
+def test_run_cli_auto_creates_team_and_spawns_wrapped_agent(monkeypatch, tmp_path):
+    runner = CliRunner()
+    env = {
+        "HOME": str(tmp_path),
+        "CLAWTEAM_DATA_DIR": str(tmp_path / ".clawteam"),
+    }
+    captured: dict[str, object] = {}
+
+    class FakeBackend:
+        def spawn(self, **kwargs):
+            captured.update(kwargs)
+            return "Agent spawned"
+
+    monkeypatch.setattr("clawteam.spawn.get_backend", lambda name: FakeBackend())
+
+    result = runner.invoke(
+        app,
+        ["run", "claude", "--team", "demo"],
+        env=env,
+    )
+
+    assert result.exit_code == 0
+    assert "Agent spawned" in result.output
+
+    team = TeamManager.get_team("demo")
+    assert team is not None
+    assert len(team.members) == 1
+    assert team.members[0].name.startswith("claude-")
+    assert team.members[0].agent_type == "claude"
+    assert team.lead_agent_id == team.members[0].agent_id
+    assert captured["team_name"] == "demo"
+    assert captured["agent_name"] == team.members[0].name
+    assert captured["agent_id"] == team.members[0].agent_id
+
+
+def test_run_cli_resume_reuses_existing_leader_and_session(monkeypatch, tmp_path):
+    runner = CliRunner()
+    env = {
+        "HOME": str(tmp_path),
+        "CLAWTEAM_DATA_DIR": str(tmp_path / ".clawteam"),
+    }
+    captured: dict[str, object] = {}
+
+    TeamManager.create_team(
+        name="demo",
+        leader_name="leader",
+        leader_id="leader001",
+        leader_agent_type="claude",
+    )
+
+    class FakeBackend:
+        def spawn(self, **kwargs):
+            captured.update(kwargs)
+            return "Agent spawned"
+
+    class FakeSession:
+        session_id = "sess-123"
+
+    monkeypatch.setattr("clawteam.spawn.get_backend", lambda name: FakeBackend())
+    monkeypatch.setattr(
+        "clawteam.spawn.sessions.SessionStore.load",
+        lambda self, agent_name: FakeSession() if agent_name == "leader" else None,
+    )
+
+    result = runner.invoke(
+        app,
+        ["run", "claude", "--team", "demo", "--resume"],
+        env=env,
+    )
+
+    assert result.exit_code == 0
+    assert "Resuming session: sess-123" in result.output
+    assert captured["agent_name"] == "leader"
+    assert captured["agent_id"] == "leader001"
+    assert captured["command"] == ["claude", "--resume", "sess-123"]
