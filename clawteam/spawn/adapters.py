@@ -8,11 +8,13 @@ from pathlib import Path
 
 from clawteam.spawn.cli_env import build_docker_clawteam_runtime
 from clawteam.spawn.command_validation import (
+    command_has_workspace_arg as has_workspace_arg,
+)
+from clawteam.spawn.command_validation import (
+    docker_wrapped_cli_name,
     ensure_docker_env,
     ensure_docker_mount,
-    command_has_workspace_arg as has_workspace_arg,
     ensure_docker_workspace,
-    docker_wrapped_cli_name,
     normalize_spawn_command,
 )
 
